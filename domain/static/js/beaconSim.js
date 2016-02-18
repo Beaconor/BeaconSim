@@ -92,27 +92,25 @@ function main(){
 	
 		gl.useProgram(shaderProgram);
 	
-		shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram,
-				"aVertexPosition");
+		shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
 		gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+		
+		shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, "aVertexColor");
+		gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute);
 	
-		shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram,
-				"aTextureCoord");
-		gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
+		//shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+		//gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
 	
-		shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram,
-				"uPMatrix");
-		shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram,
-				"uMVMatrix");
-		shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram,
-				"uSampler");
-		shaderProgram.colorUniform = gl.getUniformLocation(shaderProgram, "uColor");
+		shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+		shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+		//shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+		//shaderProgram.colorUniform = gl.getUniformLocation(shaderProgram, "uColor");
 	}
 	
 	
 	
 	
-	
+	/*
 	function handleLoadedTexture(texture) {
 		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 		gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -135,7 +133,7 @@ function main(){
 	
 		bulbTexture.image.src = "star.gif";
 	}
-	
+	*/
 	var mvMatrix = GLMat.mat4.create();
 	var initMVMat = GLMat.mat4.create();
 	var pMatrix = GLMat.mat4.create();
@@ -194,16 +192,59 @@ function main(){
 	}
 	
 	var bulbVertexPositionBuffer;
-	var bulbVertexTextureCoordBuffer;
+	var bulbBGVertexPositionBuffer;
+	//var bulbVertexTextureCoordBuffer;
+	var bulbVertexColorBuffer;
+	var bulbBGVertexColorBuffer;
 	
 	function initBuffers() {
+		
+		
+		// circle shape "triangle fan"
+		var outlineW = 0.05;
+		var bgZ = 0.1;
+		
+		var originX = 0.0;
+		var originY = 0.0;
+		var originZ = 0.0;
+		var radius = unit * 0.8;
+		var bgRadius = radius + outlineW;
+		var fansNum = 16;
+		
+		var vertices = [originX, originY, originZ];
+		var bgVertices = [originX, originY, originZ];
+		
+		var x, y, z;
+		z = originZ;
+		var degPerFan = twoPI / fansNum;
+		var angle;
+		
+		var i;
+		for (i=0; i <= fansNum; i++) {
+			angle = degPerFan * (i+1);
+			x = originX + Math.cos(angle) * radius;
+			y = originY + Math.sin(angle) * radius;
+			vertices = vertices.concat([x, y, z]);
+			
+			x = originX + Math.cos(angle) * bgRadius;
+			y = originY + Math.sin(angle) * bgRadius;
+			bgVertices = bgVertices.concat([x, y, z-bgZ]);
+		}
+		
+		
 		bulbVertexPositionBuffer = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexPositionBuffer);
-		vertices = [ -1.0, -1.0, 0.0, 1.0, -1.0, 0.0, -1.0, 1.0, 0.0, 1.0, 1.0, 0.0 ];
 		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
 		bulbVertexPositionBuffer.itemSize = 3;
-		bulbVertexPositionBuffer.numItems = 4;
-	
+		bulbVertexPositionBuffer.numItems = vertices.length / bulbVertexPositionBuffer.itemSize;
+		
+		bulbBGVertexPositionBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, bulbBGVertexPositionBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bgVertices), gl.STATIC_DRAW);
+		bulbBGVertexPositionBuffer.itemSize = 3;
+		bulbBGVertexPositionBuffer.numItems = bgVertices.length / bulbBGVertexPositionBuffer.itemSize;
+		
+		/*
 		bulbVertexTextureCoordBuffer = gl.createBuffer();
 		gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexTextureCoordBuffer);
 		var textureCoords = [ 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0 ];
@@ -211,23 +252,82 @@ function main(){
 				gl.STATIC_DRAW);
 		bulbVertexTextureCoordBuffer.itemSize = 2;
 		bulbVertexTextureCoordBuffer.numItems = 4;
+		*/
+		
+		var colors = [];
+        for (i=0; i < bulbVertexPositionBuffer.numItems; i++) {
+            colors = colors.concat([0.0, 0.0, 0.0, 1.0]);
+        }
+		
+		bulbVertexColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+        bulbVertexColorBuffer.itemSize = 4;
+        bulbVertexColorBuffer.numItems = bulbVertexPositionBuffer.numItems;
+        
+        bulbBGVertexColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, bulbBGVertexColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+        bulbBGVertexColorBuffer.itemSize = 4;
+        bulbBGVertexColorBuffer.numItems = bulbBGVertexPositionBuffer.numItems;
 	}
 	
-	function drawBulb() {
-		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_2D, bulbTexture);
-		gl.uniform1i(shaderProgram.samplerUniform, 0);
+	function drawBulb(bulb) {
+		// Move to the bulb's position
+		GLMat.mat4.translate(mvMatrix, mvMatrix, bulb.pos);
 	
-		gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexTextureCoordBuffer);
-		gl.vertexAttribPointer(shaderProgram.textureCoordAttribute,
-				bulbVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
-	
-		gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexPositionBuffer);
-		gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute,
-				bulbVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
-	
+		// Rotate back so that the bulb is facing the viewer
+		GLMat.mat4.rotate(mvMatrix, mvMatrix, degToRad(-rota), [ 0.0, 1.0, 0.0 ]);
+		GLMat.mat4.rotate(mvMatrix, mvMatrix, degToRad(-pitch), [ 1.0, 0.0, 0.0 ]);
+		
 		setMatrixUniforms();
-		gl.drawArrays(gl.TRIANGLE_STRIP, 0, bulbVertexPositionBuffer.numItems);
+		
+		//gl.activeTexture(gl.TEXTURE0);
+		//gl.bindTexture(gl.TEXTURE_2D, bulbTexture);
+		//gl.uniform1i(shaderProgram.samplerUniform, 0);
+	
+		//gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexTextureCoordBuffer);
+		//gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, bulbVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+		
+		// - draw BG circle (for black outline) - //
+		var useOutline = false;
+		if (useOutline){
+			gl.bindBuffer(gl.ARRAY_BUFFER, bulbBGVertexPositionBuffer);
+			gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, bulbBGVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+			
+			gl.bindBuffer(gl.ARRAY_BUFFER, bulbBGVertexColorBuffer);
+			gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, bulbBGVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+			
+			gl.drawArrays(gl.TRIANGLE_FAN, 0, bulbBGVertexPositionBuffer.numItems);
+		}
+		
+		// - draw main circle - //
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexPositionBuffer);
+		gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, bulbVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+		// colors
+		
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexColorBuffer);
+		var edgeMult = 0.5;
+		colors = [bulb.color.r, bulb.color.g, bulb.color.b, 1.0];
+        for (var i=0; i < bulbVertexPositionBuffer.numItems-1; i++) {
+            colors = colors.concat([bulb.color.r*edgeMult, bulb.color.g*edgeMult, bulb.color.b*edgeMult, 1.0]);
+        }
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+		
+		
+        gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, bulbVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+        
+		//gl.drawArrays(gl.TRIANGLE_STRIP, 0, bulbVertexPositionBuffer.numItems);
+		gl.drawArrays(gl.TRIANGLE_FAN, 0, bulbVertexPositionBuffer.numItems);
+		
+		
+		// restore the previous state of mvMatrix
+		GLMat.mat4.copy(mvMatrix, initMVMat);
 	}
 	
 	
@@ -246,6 +346,7 @@ function main(){
 		this.color.a = 1.0;
 	}
 	
+	/*
 	// TODO: this belongs in drawBulb(), we'll change it so drawBulb() accepts a bulb parameter 
 	Bulb.prototype.draw = function() {
 		// get the global model view matrix and copy it so we can mangle it
@@ -260,12 +361,14 @@ function main(){
 		
 		
 		// Draw the bulb in its main color
-		gl.uniform3f(shaderProgram.colorUniform, this.color.r, this.color.g, this.color.b);
+		//gl.uniform3f(shaderProgram.colorUniform, this.color.r, this.color.g, this.color.b);
 		drawBulb()
 		
 		// restore the previous state of mvMatrix
 		GLMat.mat4.copy(mvMatrix, initMVMat);
 	};
+	*/
+	
 	/*
 	var effectiveFPMS = 60 / 1000;
 	
@@ -457,7 +560,8 @@ function main(){
 		GLMat.mat4.copy(initMVMat, mvMatrix);
 		
 		for ( var i in bulbs) {
-			bulbs[i].draw();
+			//bulbs[i].draw();
+			drawBulb(bulbs[i]);
 		}
 	
 	}
@@ -491,7 +595,7 @@ function main(){
 		initGL(canvas);
 		initShaders();
 		initBuffers();
-		initTexture();
+		//initTexture();
 		initWorldObjects();
 	
 		gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -505,8 +609,9 @@ function main(){
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 		GLMat.mat4.perspective(pMatrix, degToRad(85), gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
 		// play with these later
-		gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-		gl.enable(gl.BLEND);
+		//gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+		//gl.enable(gl.BLEND);
+		gl.enable(gl.DEPTH_TEST);
 		// --- //
 		
 		tick();
@@ -599,6 +704,7 @@ function main(){
 		pA.washYOffset -= elapse / pA.washYRate;
 		pA.washYOffset = modulo(pA.washYOffset, 1);
 		
+		var dimMult = 0.5;
 		var adjLat;
 		for (iBulb = 0; iBulb < bulbs.length; iBulb++){
 			var bulb = bulbs[iBulb];
@@ -606,9 +712,9 @@ function main(){
 			adjLat = pA.washYOffset + bulb.latitude;
 			adjLat = modulo(adjLat, 1);
 			var color = pctToHue(adjLat);
-			bulb.color.r = color.r * 0.2;
-			bulb.color.g = color.g * 0.2;
-			bulb.color.b = color.b * 0.2;
+			bulb.color.r = color.r * dimMult;
+			bulb.color.g = color.g * dimMult;
+			bulb.color.b = color.b * dimMult;
 		}
 		
 		// - square 
