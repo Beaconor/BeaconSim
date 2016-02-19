@@ -430,8 +430,9 @@ function main(){
 		return value;
 	}
 	
-	function pctToHue(pct){
+	function hsbToRGB(h, s, b){
 		
+		// 				HUE 
 		//		
 		//	c	1_ |_r___g_____b____r_|
 		//	o	   |  /\    /\    /\  |
@@ -442,31 +443,101 @@ function main(){
 		//	deg	   0         1        3
 		//		             8        6
 		//		             0        0 
+		//
+		//	ofSix   0  1  2  3  4  5  6
 		
 		
 		// gets the color based on the degree around the color wheel
 		// except we use 0 -> 1 instead of degrees 
-		pct = modulo(pct, 1);
+		h = modulo(h, 1);
+		s = clamp(s, 0, 1);
+		b = clamp(b, 0, 1);
 		
-		// -3 -> 0 -> 3
-		var deg = pct * 6;
-		
-		// helper bot
-		var sixToChannel = function(six){
-			six = modulo(six, 6) - 3; // // -3 -> 0 -> 3
-			six = clamp( (Math.abs(six) - 1), 0, 1); // 1 -> 1 -> 0 -> 0 -> 0 -> 1 -> 1
-			return six;
-		}
+		// 0 -> 6
+		var ofSix = h * 6;
 		
 		var color = {};
-		color.r = sixToChannel(deg);
-		color.g = sixToChannel(deg + 2);
-		color.b = sixToChannel(deg + 4);
 		
+		// test 
+		/*
+		var testColor = {};
+		var varColor = {};
+		
+		// helper bot
+		var sixToChannel = function(localOfSix){
+			localOfSix = modulo(localOfSix, 6) - 3; // // -3 -> 0 -> 3
+			localOfSix = clamp( (Math.abs(localOfSix) - 1), 0, 1); // 1 -> 1 -> 0 -> 0 -> 0 -> 1 -> 1
+			return localOfSix;
+		}
+		
+		testColor.r = sixToChannel(ofSix);
+		testColor.g = sixToChannel(ofSix + 4);
+		testColor.b = sixToChannel(ofSix + 2);
+		/* */
+		
+		var max = b;
+		var min = (1 - s) * b;
+		var flux = ofSix - Math.floor(ofSix)
+		var upFlux = lerp(min, max, flux);
+		var downFlux = lerp(min, max, 1-flux);
+		
+		if (ofSix < 1){
+			color.r = max;
+			color.g = upFlux;
+			color.b = min;
+		}else if(ofSix < 2){
+			color.r = downFlux;
+			color.g = max;
+			color.b = min;
+		}else if(ofSix < 3){
+			color.r = min;
+			color.g = max;
+			color.b = upFlux;
+		}else if(ofSix < 4){
+			color.r = min;
+			color.g = downFlux;
+			color.b = max;
+		}else if(ofSix < 5){
+			color.r = upFlux;
+			color.g = min;
+			color.b = max;
+		}else{
+			color.r = max;
+			color.g = min;
+			color.b = downFlux;
+		}
+		
+		// test 
+		/*
+		varColor.r = testColor.r - color.r;
+		varColor.g = testColor.g - color.g;
+		varColor.b = testColor.b - color.b;
+		
+		console.log(ofSix);
+		console.log(color);
+		//console.log(varColor);
+		//console.log("   ");
+		/* */
 		return color;
 	}
-	
-	
+	/*
+	function hueToPct(r, g, b){
+		r = clamp(r, 0, 1);
+		g = clamp(g, 0, 1);
+		b = clamp(b, 0, 1);
+		
+		var ofSix = 0;
+		
+		if (g > r && g > b){
+			
+		}else if(){
+			
+		}else{
+			// grey scales will be red deg = 0
+		}
+		
+	}
+	*/
 	// ======= animation Programme ======= //
 	var Programme = function(title){
 		this.title = title;
@@ -495,6 +566,8 @@ function main(){
 		currentlyPressedKeys[event.keyCode] = false;
 	}
 	
+	var onKeyPress = function(){}; // to be overridden
+	
 	function handleKeys() {
 		if (currentlyPressedKeys[34]) {
 			// Page Up
@@ -520,11 +593,15 @@ function main(){
 			// Down cursor key
 			sculpt.pitch -= 2;
 		}
+		
+		// - if the code that governs the outside pg needs to monitor keypresses 
+		onKeyPress();
 	}
 	
 	// --- o --- //
 	var sculpt = new Sculpture();
 	var activeProgramme;
+	var activeProgrammeIndex = 0;
 	var programmes = [];
 	
 	function onFrame(){
@@ -546,7 +623,7 @@ function main(){
 		requestAnimFrame(onFrame);
 	}
 	
-	
+	var onInit = function(){}; // - to be overridden by code that controlls the outer page
 	function onLoaded(){
 		// - any changes to sculpt settings go here
 		
@@ -555,7 +632,24 @@ function main(){
 		for ( var i in programmes) {
 			programmes[i].init(sculpt);
 		}
+		
+		activeProgramme = programmes[activeProgrammeIndex];
+		
 		onFrame();
+		onInit();
+		//for (var i=0; i<=36; i++){
+		//	hsbToRGB(i/36, 1.0, 0.5);
+		//}
+		/*
+		console.log(219/360 * 6);
+		console.log( hsbToRGB(219/360, 1.0, 1.0) );
+		
+		console.log(225/360 * 6);
+		console.log( hsbToRGB(225/360, 1.0, 1.0) );
+		
+		console.log(255/360 * 6);
+		console.log( hsbToRGB(255/360, 1.0, 1.0) );
+		*/
 	}
 	
 	// ======= end main structure begin modular parts ======= //
@@ -563,7 +657,7 @@ function main(){
 	// ======= animations ======= //
 	
 	// === programme A === //
-	var pA = new Programme('Programme A'); // TODO: make this a class so it can be extended by users and passed in modularly
+	var pA = new Programme('Programme A'); 
 	
 	// - square - //
 	pA.sqW = twoPI / 7;
@@ -595,10 +689,10 @@ function main(){
 			
 			adjLat = pA.washYOffset + bulb.latitude;
 			adjLat = modulo(adjLat, 1);
-			var color = pctToHue(adjLat);
-			bulb.color.r = color.r * dimMult;
-			bulb.color.g = color.g * dimMult;
-			bulb.color.b = color.b * dimMult;
+			var color = hsbToRGB(adjLat, 1.0, dimMult);
+			bulb.color.r = color.r;
+			bulb.color.g = color.g;
+			bulb.color.b = color.b;
 		}
 		
 		// - square 
@@ -632,13 +726,82 @@ function main(){
 	programmes.push(pA);
 	
 	// === programme B=== //
+	var pB = new Programme('Programme B'); 
+	
+	pB.amp = 0.5;
+	pB.varience = 0.03;
+	pB.fadeRate = 0.98;
+	pB.fadeFloor = 0.01;
+	
+	pB.channelFade = function(cVal){
+		cVal *= pB.fadeRate;
+		if (cVal < pB.fadeFloor) cVal = 0.0;
+		return cVal;
+	}
+	
+	pB.onFrame = function(elapse){
+		var iBulb;
+		var strength;
+		/*
+		for (iBulb = 0; iBulb < this.sculpt.bulbs.length; iBulb++){
+			var bulb = this.sculpt.bulbs[iBulb];
+			
+			bulb.color.r = bulb.color.g = bulb.color.b = 0.1;
+		}
+		*/
+		
+		pB.amp += pB.varience * (Math.random() * 2 - 1);
+		
+		pB.amp = clamp(pB.amp, 0, 1);
+		
+		
+		for (iBulb = 0; iBulb < this.sculpt.bulbs.length; iBulb++){
+			var bulb = this.sculpt.bulbs[iBulb];
+			
+			if (bulb.latitude <= pB.amp){
+				strength = 1 - ((pB.amp - bulb.latitude)/0.4);
+				bulb.color.r = bulb.color.g = bulb.color.b = strength;
+			}else{
+				bulb.color.r = pB.channelFade(bulb.color.r);
+				bulb.color.g = pB.channelFade(bulb.color.r);
+				bulb.color.b = pB.channelFade(bulb.color.r);
+			}
+		}
+	}
+	
+	programmes.push(pB);
 	// === o === //
 	
 	activeProgramme = pA;
 	
+	// ======= code for anything outside of the sculpture ======= //
+	function showProgInfo(){
+		$('#progTitle').html(activeProgramme.title);
+	}
 	
+	var prgCyclePressed = false;
+	onKeyPress = function(){
+		// - key 32 = spacebar
+		if (currentlyPressedKeys[32] && !prgCyclePressed){
+			activeProgrammeIndex = modulo(activeProgrammeIndex+1, programmes.length);
+			activeProgramme = programmes[activeProgrammeIndex];
+			
+			showProgInfo();
+			
+			prgCyclePressed = true;
+		}
+		
+		if (prgCyclePressed && !currentlyPressedKeys[32]){
+			prgCyclePressed = false;
+		}
+	}
+	
+	onInit = function(){
+		showProgInfo();
+	}
 	
 	// ======= o ======= //
 	
-	onLoaded();// kick it off 
+	// ======= kick out the jam! ======= //
+	onLoaded();
 } // end main()
