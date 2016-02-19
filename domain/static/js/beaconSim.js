@@ -20,27 +20,70 @@ define(function (require) {
 // --- main() wraps all "global" code for encapsulation and so we don't use dependencies before they are loaded --- //
 function main(){
 	
-	var bulbs = [];
 	
-	function onLoaded(){
-		webGLStart();
+	// ======= Bulb ======= //
+	
+	function Bulb(pos, latitude, longitude) {
+		this.pos = pos;
+		this.latitude = latitude; // 0 -> 1, from south pole to north pole
+		this.longitude = longitude; // longitude in radians  
+		
+		this.color = {};
+		
+		this.color.r = 0;
+		this.color.g = 0;
+		this.color.b = 0;
+		this.color.a = 1.0;
+	}
+	
+	
+	// ======= Sculpture ======= //
+	
+	function Sculpture(){
+		// --- settings for size and shape of sculpture --- //
+		this.unit = 0.8;
+		this.bulbRows = 12;
+		this.poleR = 1 * this.unit; // radius of end caps
+		this.equatorR = 4.5 * this.unit;
+		this.curveExp = 0.6;
+		
+		// --- vars --- //
+		
+		this.bulbs = [];
+		
+		this.mvMatrix = GLMat.mat4.create();
+		this.initMVMat = GLMat.mat4.create();
+		this.pMatrix = GLMat.mat4.create();
+		
+		this.zoom = -15;
+		this.rota = 0;
+		this.pitch = 0;
+		
+		// - technically these won't be attached until they are given a value 
+		// 	but we'll declare them here for organizational purposes 
+		this.shaderProgram;
+		this.bulbVertexPositionBuffer;
+		this.bulbBGVertexPositionBuffer;
+		this.bulbVertexColorBuffer;
+		this.bulbBGVertexColorBuffer;
 	}
 	
 	
 	// Set up GL 
-	function initGL(canvas) {
+	Sculpture.prototype.initGL(canvas) {
 		try {
 			gl = canvas.getContext("experimental-webgl");
 			gl.viewportWidth = canvas.width;
 			gl.viewportHeight = canvas.height;
 		} catch (e) {
+			console.log(e);
 		}
 		if (!gl) {
 			alert("Could not initialise WebGL, sorry :-(");
 		}
 	}
 	
-	function getShader(gl, id) {
+	Sculpture.prototype.getShader(gl, id) {
 		var shaderScript = document.getElementById(id);
 		if (!shaderScript) {
 			return null;
@@ -75,139 +118,49 @@ function main(){
 		return shader;
 	}
 	
-	var shaderProgram;
-	
-	function initShaders() {
+	Sculpture.prototype.initShaders() {
 		var fragmentShader = getShader(gl, "shader-fs");
 		var vertexShader = getShader(gl, "shader-vs");
 	
-		shaderProgram = gl.createProgram();
-		gl.attachShader(shaderProgram, vertexShader);
-		gl.attachShader(shaderProgram, fragmentShader);
-		gl.linkProgram(shaderProgram);
+		this.shaderProgram = gl.createProgram();
+		gl.attachShader(this.shaderProgram, vertexShader);
+		gl.attachShader(this.shaderProgram, fragmentShader);
+		gl.linkProgram(this.shaderProgram);
 	
-		if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+		if (!gl.getProgramParameter(this.shaderProgram, gl.LINK_STATUS)) {
 			alert("Could not initialise shaders");
 		}
 	
-		gl.useProgram(shaderProgram);
+		gl.useProgram(this.shaderProgram);
 	
-		shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-		gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+		this.shaderProgram.vertexPositionAttribute = gl.getAttribLocation(this.shaderProgram, "aVertexPosition");
+		gl.enableVertexAttribArray(this.shaderProgram.vertexPositionAttribute);
 		
-		shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, "aVertexColor");
-		gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute);
-	
-		//shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
-		//gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
-	
-		shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
-		shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
-		//shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
-		//shaderProgram.colorUniform = gl.getUniformLocation(shaderProgram, "uColor");
-	}
-	
-	
-	
-	
-	/*
-	function handleLoadedTexture(texture) {
-		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-		gl.bindTexture(gl.TEXTURE_2D, texture);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,
-				texture.image);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-	
-		gl.bindTexture(gl.TEXTURE_2D, null);
-	}
-	
-	var bulbTexture;
-	
-	function initTexture() {
-		bulbTexture = gl.createTexture();
-		bulbTexture.image = new Image();
-		bulbTexture.image.onload = function() {
-			handleLoadedTexture(bulbTexture)
-		}
-	
-		bulbTexture.image.src = "star.gif";
-	}
-	*/
-	var mvMatrix = GLMat.mat4.create();
-	var initMVMat = GLMat.mat4.create();
-	var pMatrix = GLMat.mat4.create();
-	
-	function setMatrixUniforms() {
-		gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
-		gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
-	}
-	
-	// utility functions
-	function degToRad(degrees) {
-		return degrees * Math.PI / 180;
-	}
-	
-	// user input 
-	var currentlyPressedKeys = {};
-	
-	function handleKeyDown(event) {
-		currentlyPressedKeys[event.keyCode] = true;
-	}
-	
-	function handleKeyUp(event) {
-		currentlyPressedKeys[event.keyCode] = false;
-	}
-	
-	var zoom = -15;
-	
-	var rota = 0;
-	var pitch = 0;
-	
-	function handleKeys() {
-		if (currentlyPressedKeys[34]) {
-			// Page Up
-			zoom -= 0.1;
-		}
-		if (currentlyPressedKeys[33]) {
-			// Page Down
-			zoom += 0.1;
-		}
-		if (currentlyPressedKeys[37]) {
-			// Up cursor key
-			rota += 2;
-		}
-		if (currentlyPressedKeys[39]) {
-			// Down cursor key
-			rota -= 2;
-		}
-		if (currentlyPressedKeys[38]) {
-			// Up cursor key
-			pitch += 2;
-		}
-		if (currentlyPressedKeys[40]) {
-			// Down cursor key
-			pitch -= 2;
-		}
-	}
-	
-	var bulbVertexPositionBuffer;
-	var bulbBGVertexPositionBuffer;
-	//var bulbVertexTextureCoordBuffer;
-	var bulbVertexColorBuffer;
-	var bulbBGVertexColorBuffer;
-	
-	function initBuffers() {
+		this.shaderProgram.vertexColorAttribute = gl.getAttribLocation(this.shaderProgram, "aVertexColor");
+		gl.enableVertexAttribArray(this.shaderProgram.vertexColorAttribute);
 		
-		
+		this.shaderProgram.pMatrixUniform = gl.getUniformLocation(this.shaderProgram, "uPMatrix");
+		this.shaderProgram.mvMatrixUniform = gl.getUniformLocation(this.shaderProgram, "uMVMatrix");
+	}
+	
+	
+	Sculpture.prototype.setMatrixUniforms() {
+		gl.uniformMatrix4fv(this.shaderProgram.pMatrixUniform, false, this.pMatrix);
+		gl.uniformMatrix4fv(this.shaderProgram.mvMatrixUniform, false, this.mvMatrix);
+	}
+	
+	
+	Sculpture.prototype.initBuffers() {
 		// circle shape "triangle fan"
+		
+		// TODO: move some of these to settings so they can be changed before init
 		var outlineW = 0.05;
 		var bgZ = 0.1;
 		
 		var originX = 0.0;
 		var originY = 0.0;
 		var originZ = 0.0;
-		var radius = unit * 0.8;
+		var radius = this.unit * 0.8;
 		var bgRadius = radius + outlineW;
 		var fansNum = 16;
 		
@@ -231,219 +184,86 @@ function main(){
 			bgVertices = bgVertices.concat([x, y, z-bgZ]);
 		}
 		
-		
-		bulbVertexPositionBuffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexPositionBuffer);
+		// TODO: Maybe change this itemSize/numItems being tacked on to the buffer paradigm.  
+		this.bulbVertexPositionBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.bulbVertexPositionBuffer);
 		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-		bulbVertexPositionBuffer.itemSize = 3;
-		bulbVertexPositionBuffer.numItems = vertices.length / bulbVertexPositionBuffer.itemSize;
+		this.bulbVertexPositionBuffer.itemSize = 3;
+		this.bulbVertexPositionBuffer.numItems = vertices.length / this.bulbVertexPositionBuffer.itemSize;
 		
-		bulbBGVertexPositionBuffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, bulbBGVertexPositionBuffer);
+		this.bulbBGVertexPositionBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.bulbBGVertexPositionBuffer);
 		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bgVertices), gl.STATIC_DRAW);
-		bulbBGVertexPositionBuffer.itemSize = 3;
-		bulbBGVertexPositionBuffer.numItems = bgVertices.length / bulbBGVertexPositionBuffer.itemSize;
+		this.bulbBGVertexPositionBuffer.itemSize = 3;
+		this.bulbBGVertexPositionBuffer.numItems = bgVertices.length / this.bulbBGVertexPositionBuffer.itemSize;
 		
-		/*
-		bulbVertexTextureCoordBuffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexTextureCoordBuffer);
-		var textureCoords = [ 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0 ];
-		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoords),
-				gl.STATIC_DRAW);
-		bulbVertexTextureCoordBuffer.itemSize = 2;
-		bulbVertexTextureCoordBuffer.numItems = 4;
-		*/
 		
 		var colors = [];
-        for (i=0; i < bulbVertexPositionBuffer.numItems; i++) {
+        for (i=0; i < this.bulbVertexPositionBuffer.numItems; i++) {
             colors = colors.concat([0.0, 0.0, 0.0, 1.0]);
         }
 		
-		bulbVertexColorBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexColorBuffer);
+		this.bulbVertexColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.bulbVertexColorBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
-        bulbVertexColorBuffer.itemSize = 4;
-        bulbVertexColorBuffer.numItems = bulbVertexPositionBuffer.numItems;
+        this.bulbVertexColorBuffer.itemSize = 4;
+        this.bulbVertexColorBuffer.numItems = this.bulbVertexPositionBuffer.numItems;
         
-        bulbBGVertexColorBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, bulbBGVertexColorBuffer);
+        this.bulbBGVertexColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.bulbBGVertexColorBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
-        bulbBGVertexColorBuffer.itemSize = 4;
-        bulbBGVertexColorBuffer.numItems = bulbBGVertexPositionBuffer.numItems;
+        this.bulbBGVertexColorBuffer.itemSize = 4;
+        this.bulbBGVertexColorBuffer.numItems = this.bulbBGVertexPositionBuffer.numItems;
 	}
 	
-	function drawBulb(bulb) {
+	Sculpture.prototype.drawBulb(bulb) {
 		// Move to the bulb's position
-		GLMat.mat4.translate(mvMatrix, mvMatrix, bulb.pos);
+		GLMat.mat4.translate(this.mvMatrix, this.mvMatrix, bulb.pos);
 	
 		// Rotate back so that the bulb is facing the viewer
-		GLMat.mat4.rotate(mvMatrix, mvMatrix, degToRad(-rota), [ 0.0, 1.0, 0.0 ]);
-		GLMat.mat4.rotate(mvMatrix, mvMatrix, degToRad(-pitch), [ 1.0, 0.0, 0.0 ]);
+		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(-rota), [ 0.0, 1.0, 0.0 ]);
+		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(-pitch), [ 1.0, 0.0, 0.0 ]);
 		
-		setMatrixUniforms();
-		
-		//gl.activeTexture(gl.TEXTURE0);
-		//gl.bindTexture(gl.TEXTURE_2D, bulbTexture);
-		//gl.uniform1i(shaderProgram.samplerUniform, 0);
-	
-		//gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexTextureCoordBuffer);
-		//gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, bulbVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		this.setMatrixUniforms();
 		
 		
 		// - draw BG circle (for black outline) - //
 		var useOutline = false;
 		if (useOutline){
-			gl.bindBuffer(gl.ARRAY_BUFFER, bulbBGVertexPositionBuffer);
-			gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, bulbBGVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+			gl.bindBuffer(gl.ARRAY_BUFFER, this.bulbBGVertexPositionBuffer);
+			gl.vertexAttribPointer(this.shaderProgram.vertexPositionAttribute, this.bulbBGVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 			
-			gl.bindBuffer(gl.ARRAY_BUFFER, bulbBGVertexColorBuffer);
-			gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, bulbBGVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+			gl.bindBuffer(gl.ARRAY_BUFFER, this.bulbBGVertexColorBuffer);
+			gl.vertexAttribPointer(this.shaderProgram.vertexColorAttribute, this.bulbBGVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
 			
-			gl.drawArrays(gl.TRIANGLE_FAN, 0, bulbBGVertexPositionBuffer.numItems);
+			gl.drawArrays(gl.TRIANGLE_FAN, 0, this.bulbBGVertexPositionBuffer.numItems);
 		}
 		
 		// - draw main circle - //
-		
-		gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexPositionBuffer);
-		gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, bulbVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.bulbVertexPositionBuffer);
+		gl.vertexAttribPointer(this.shaderProgram.vertexPositionAttribute, this.bulbVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 		
 		// colors
-		
-		
-		gl.bindBuffer(gl.ARRAY_BUFFER, bulbVertexColorBuffer);
-		var edgeMult = 0.5;
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.bulbVertexColorBuffer);
+		var edgeMult = 0.5;// TODO: move this to settings
 		colors = [bulb.color.r, bulb.color.g, bulb.color.b, 1.0];
-        for (var i=0; i < bulbVertexPositionBuffer.numItems-1; i++) {
+        for (var i=0; i < this.bulbVertexPositionBuffer.numItems-1; i++) {
             colors = colors.concat([bulb.color.r*edgeMult, bulb.color.g*edgeMult, bulb.color.b*edgeMult, 1.0]);
         }
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
 		
 		
-        gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, bulbVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
-		
-        
-		//gl.drawArrays(gl.TRIANGLE_STRIP, 0, bulbVertexPositionBuffer.numItems);
-		gl.drawArrays(gl.TRIANGLE_FAN, 0, bulbVertexPositionBuffer.numItems);
-		
+        gl.vertexAttribPointer(this.shaderProgram.vertexColorAttribute, this.bulbVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		gl.drawArrays(gl.TRIANGLE_FAN, 0, this.bulbVertexPositionBuffer.numItems);
 		
 		// restore the previous state of mvMatrix
-		GLMat.mat4.copy(mvMatrix, initMVMat);
+		GLMat.mat4.copy(this.mvMatrix, this.initMVMat);
 	}
 	
 	
-	// ======= Bulb ======= //
+	// === construct the sculpture === //
 	
-	function Bulb(pos, latitude, longitude) {
-		this.pos = pos;
-		this.latitude = latitude; // 0 -> 1, from south pole to north pole
-		this.longitude = longitude; // longitude in radians  
-		
-		this.color = {};
-		
-		this.color.r = 0;
-		this.color.g = 0;
-		this.color.b = 0;
-		this.color.a = 1.0;
-	}
-	
-	/*
-	// TODO: this belongs in drawBulb(), we'll change it so drawBulb() accepts a bulb parameter 
-	Bulb.prototype.draw = function() {
-		// get the global model view matrix and copy it so we can mangle it
-		
-		
-		// Move to the bulb's position
-		GLMat.mat4.translate(mvMatrix, mvMatrix, this.pos);
-	
-		// Rotate back so that the bulb is facing the viewer
-		GLMat.mat4.rotate(mvMatrix, mvMatrix, degToRad(-rota), [ 0.0, 1.0, 0.0 ]);
-		GLMat.mat4.rotate(mvMatrix, mvMatrix, degToRad(-pitch), [ 1.0, 0.0, 0.0 ]);
-		
-		
-		// Draw the bulb in its main color
-		//gl.uniform3f(shaderProgram.colorUniform, this.color.r, this.color.g, this.color.b);
-		drawBulb()
-		
-		// restore the previous state of mvMatrix
-		GLMat.mat4.copy(mvMatrix, initMVMat);
-	};
-	*/
-	
-	/*
-	var effectiveFPMS = 60 / 1000;
-	
-	Bulb.prototype.onFrame = function(elapsedTime) {
-		this.angle += this.rotationSpeed * effectiveFPMS * elapsedTime;
-	
-		// Decrease the distance, resetting the bulb to the outside of
-		// the spiral if it's at the center.
-		this.dist -= 0.01 * effectiveFPMS * elapsedTime;
-		if (this.dist < 0.0) {
-			this.dist += 5.0;
-			this.randomiseColors();
-		}
-	
-	};
-	
-	Bulb.prototype.randomiseColors = function() {
-		// Give the bulb a random color for normal
-		// circumstances...
-		this.r = Math.random();
-		this.g = Math.random();
-		this.b = Math.random();
-		
-	};
-	*/
-	
-	
-	/*
-	function initWorldObjects() {
-		var numBulbs = 12;
-	
-		for ( var i = 0; i < numBulbs; i++) {
-			var pos = GLMat.vec3.create();
-			
-			//var coord = (i-0.5)*3;
-			//GLMat.vec3.set(pos, coord, coord, coord);
-			
-			
-			var coord = i - 5.5;
-			GLMat.vec3.set(pos, 0, coord, 0);
-			
-			
-			
-			bulbs.push( new Bulb(pos) );
-		}
-		
-		var pos1 = GLMat.vec3.create();
-		GLMat.vec3.set(pos1, -4.5, 0, 0);
-		bulbs.push( new Bulb(pos1) );
-		
-		var pos2 = GLMat.vec3.create();
-		GLMat.vec3.set(pos2, 4.5, 0, 0);
-		bulbs.push( new Bulb(pos2) );
-		
-		var pos3 = GLMat.vec3.create();
-		GLMat.vec3.set(pos3, 0, 0, -4.5);
-		bulbs.push( new Bulb(pos3) );
-		
-		var pos4 = GLMat.vec3.create();
-		GLMat.vec3.set(pos4, 0, 0, 4.5);
-		bulbs.push( new Bulb(pos4) );
-		
-	}
-	*/
-	
-	
-	// === settings for size and shape of sculpture === //
-	var unit = 0.8;
-	var rows = 12;
-	var poleR = 1 * unit; // radius of end caps
-	var equatorR = 4.5 * unit;
-	var curveExp = 0.6;
-	
-	
-	function initWorldObjects(){
+	Sculpture.prototype.initWorldObjects(){
 		var rOffset = 0;
 		var rowBulbsNum;
 		var rowRad; // row radius
@@ -459,13 +279,13 @@ function main(){
 		var iRow;
 		var iBulb;
 		
-		for (iRow = 0; iRow < rows; iRow++){
-			latPct = iRow / (rows-1); // 0 -> 1
+		for (iRow = 0; iRow < this.bulbRows; iRow++){
+			latPct = iRow / (this.bulbRows-1); // 0 -> 1
 			lat = (latPct * 2) - 1; // -1 -> 0 -> 1
 			equatorPct = 1 - Math.abs( lat ); // 0 -> 1 -> 0
-			equatorPct = Math.pow(equatorPct, curveExp); // give the thing some roundness 
-			rowRad = lerp(poleR, equatorR, equatorPct);
-			rowBulbsNum = Math.floor( (twoPI*rowRad)/unit );
+			equatorPct = Math.pow(equatorPct, this.curveExp); // give the thing some roundness 
+			rowRad = lerp(this.poleR, this.equatorR, equatorPct);
+			rowBulbsNum = Math.floor( (twoPI*rowRad)/this.unit );
 			
 			rUnit = twoPI / rowBulbsNum;
 			
@@ -477,7 +297,7 @@ function main(){
 			}
 			
 			for (iBulb = 0; iBulb < rowBulbsNum; iBulb++){
-				y = lat * ((rows-1) * 0.5) * unit;
+				y = lat * ((this.bulbRows-1) * 0.5) * this.unit;
 				r = rUnit * iBulb + rOffset;
 				
 				x = Math.sin(r) * rowRad;
@@ -486,17 +306,14 @@ function main(){
 				var pos = GLMat.vec3.create();
 				GLMat.vec3.set(pos, x, y, z);
 				var bulb = new Bulb(pos, latPct, r);
-				//bulb.color.r = latPct;
-				//bulb.color.g = 0;
-				//bulb.color.b = 1 - latPct;
-				bulbs.push(bulb);
+				this.bulbs.push(bulb);
 			}
 			
 		}
 		
 	}
 	
-	function getBulbsByLatLong(lat0, lat1, long0, long1){
+	Sculpture.prototype.getBulbsByLatLong(lat0, lat1, long0, long1){
 		long0 = modulo(long0, twoPI);
 		long1 = modulo(long1, twoPI);
 		lat0 = modulo(lat0, 1);
@@ -513,7 +330,7 @@ function main(){
 		var long2 = long0;
 		var long3 = long1;
 		
-		// if our section crosses the international date line
+		// - if our section crosses the international date line
 		if (long1 < long0){
 			long0 -= twoPI;
 			long3 += twoPI;
@@ -523,8 +340,8 @@ function main(){
 		var bulb;
 		var i;
 		
-		for (i = 0; i < bulbs.length; i++){
-			bulb = bulbs[i];
+		for (i = 0; i < this.bulbs.length; i++){
+			bulb = this.bulbs[i];
 			if ( 
 					(lat0 <= bulb.latitude && bulb.latitude <= lat1) 
 					&& 
@@ -541,84 +358,56 @@ function main(){
 		return sectionBulbs;
 	}
 	
+	// === on frame and init functions === //
 	
-	function drawScene() {
-		//gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+	Sculpture.prototype.render() {
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-		//GLMat.mat4.perspective(pMatrix, degToRad(85), gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
-		// play with these later
-		//gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-		//gl.enable(gl.BLEND);
-	
-		GLMat.mat4.identity(mvMatrix);
-		GLMat.mat4.translate(mvMatrix, mvMatrix, [ 0.0, 0.0, zoom ]);
 		
-		GLMat.mat4.rotate(mvMatrix, mvMatrix, degToRad(pitch), [ 1.0, 0.0, 0.0 ]);
-		GLMat.mat4.rotate(mvMatrix, mvMatrix, degToRad(rota), [ 0.0, 1.0, 0.0 ]);
+		GLMat.mat4.identity(this.mvMatrix);
+		GLMat.mat4.translate(this.mvMatrix, this.mvMatrix, [ 0.0, 0.0, this.zoom ]);
 		
-		//console.log(mvMatrix);
-		GLMat.mat4.copy(initMVMat, mvMatrix);
+		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(pitch), [ 1.0, 0.0, 0.0 ]);
+		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(rota), [ 0.0, 1.0, 0.0 ]);
 		
-		for ( var i in bulbs) {
-			//bulbs[i].draw();
-			drawBulb(bulbs[i]);
+		GLMat.mat4.copy(this.initMVMat, this.mvMatrix);
+		
+		for ( var i in this.bulbs) {
+			this.drawBulb(this.bulbs[i]);
 		}
-	
 	}
 	
 	
-	var prevFrameT = 0;
-	var elapse = 0;
-	
-	function onFrame() {
-		var nowT = new Date().getTime();
-		if (prevFrameT == 0) {
-			prevFrameT = nowT;
-			return;
-		}
-		elapse = nowT - prevFrameT;
-		
-		pA.onFrame(elapse);
-		
-		prevFrameT = nowT;
-	}
-	
-	function tick() {
-		requestAnimFrame(tick);
-		handleKeys();
-		drawScene();
-		onFrame();
-	}
-	
-	function webGLStart() {
+	Sculpture.prototype.init() {
 		var canvas = document.getElementById("beaconCanvas");
-		initGL(canvas);
-		initShaders();
-		initBuffers();
-		//initTexture();
-		initWorldObjects();
+		this.initGL(canvas);
+		this.initShaders();
+		this.initBuffers();
+		this.initWorldObjects();
 	
 		gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	
 		document.onkeydown = handleKeyDown;
 		document.onkeyup = handleKeyUp;
 		
-		
 		// TODO: move this?
 		gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-		GLMat.mat4.perspective(pMatrix, degToRad(85), gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+		GLMat.mat4.perspective(this.pMatrix, degToRad(85), gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
 		// play with these later
 		//gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 		//gl.enable(gl.BLEND);
 		gl.enable(gl.DEPTH_TEST);
 		// --- //
 		
-		tick();
+		//this.tick();
 	}
 	
 	// === utility === //
 	var twoPI = Math.PI * 2;
+	
+	function degToRad(degrees) {
+		return degrees * Math.PI / 180;
+	}
 	
 	function lerp(from, to, pct){
 		return (to - from) * pct + from;
@@ -676,6 +465,8 @@ function main(){
 		
 		return color;
 	}
+	
+	
 	// ======= animations ======= //
 	
 	// === programme A === //
@@ -706,8 +497,8 @@ function main(){
 		
 		var dimMult = 0.5;
 		var adjLat;
-		for (iBulb = 0; iBulb < bulbs.length; iBulb++){
-			var bulb = bulbs[iBulb];
+		for (iBulb = 0; iBulb < this.sculpt.bulbs.length; iBulb++){
+			var bulb = this.sculpt.bulbs[iBulb];
 			
 			adjLat = pA.washYOffset + bulb.latitude;
 			adjLat = modulo(adjLat, 1);
@@ -735,7 +526,7 @@ function main(){
 		}
 		
 		
-		var sqBulbs = getBulbsByLatLong(pA.sqT - pA.sqH, pA.sqT, pA.sqL, pA.sqL + pA.sqW);
+		var sqBulbs = sculpt.getBulbsByLatLong(pA.sqT - pA.sqH, pA.sqT, pA.sqL, pA.sqL + pA.sqW);
 		
 		for (iBulb = 0; iBulb < sqBulbs.length; iBulb++){
 			bulb = sqBulbs[iBulb];
@@ -745,7 +536,84 @@ function main(){
 		}
 	}
 	
+	pA.init = function(sculpt){
+		this.sculpt = sculpt;
+	}
+	
 	// ======= o ======= //
+	
+	var currentlyPressedKeys = {};
+	var prevFrameT = 0;
+	var elapse = 0;
+	
+	// --- user input --- //
+	
+	function handleKeyDown(event) {
+		currentlyPressedKeys[event.keyCode] = true;
+	}
+	
+	function handleKeyUp(event) {
+		currentlyPressedKeys[event.keyCode] = false;
+	}
+	
+	function handleKeys() {
+		if (currentlyPressedKeys[34]) {
+			// Page Up
+			sculpt.zoom -= 0.1;
+		}
+		if (currentlyPressedKeys[33]) {
+			// Page Down
+			sculpt.zoom += 0.1;
+		}
+		if (currentlyPressedKeys[37]) {
+			// Up cursor key
+			sculpt.rota += 2;
+		}
+		if (currentlyPressedKeys[39]) {
+			// Down cursor key
+			sculpt.rota -= 2;
+		}
+		if (currentlyPressedKeys[38]) {
+			// Up cursor key
+			sculpt.pitch += 2;
+		}
+		if (currentlyPressedKeys[40]) {
+			// Down cursor key
+			sculpt.pitch -= 2;
+		}
+	}
+	
+	// --- o --- //
+	var sculpt = new Sculpture();
+	
+	
+	function onFrame() {
+		var nowT = new Date().getTime();
+		if (prevFrameT == 0) {
+			prevFrameT = nowT;
+			requestAnimFrame(onFrame);
+			return;
+		}
+		elapse = nowT - prevFrameT;
+		
+		
+		handleKeys();
+		
+		pA.onFrame(elapse);
+		sculpt.render();
+		
+		prevFrameT = nowT;
+		requestAnimFrame(onFrame);
+	}
+	
+	
+	function onLoaded(){
+		// - any changes to sculpt settings go here
+		
+		sculpt.init();
+		pA.init(sculpt);
+		onFrame();
+	}
 	
 	
 	onLoaded();// kick it off 
