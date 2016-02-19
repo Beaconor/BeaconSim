@@ -70,7 +70,7 @@ function main(){
 	
 	
 	// Set up GL 
-	Sculpture.prototype.initGL(canvas) {
+	Sculpture.prototype.initGL = function(canvas) {
 		try {
 			gl = canvas.getContext("experimental-webgl");
 			gl.viewportWidth = canvas.width;
@@ -83,7 +83,7 @@ function main(){
 		}
 	}
 	
-	Sculpture.prototype.getShader(gl, id) {
+	Sculpture.prototype.getShader = function(gl, id) {
 		var shaderScript = document.getElementById(id);
 		if (!shaderScript) {
 			return null;
@@ -118,9 +118,9 @@ function main(){
 		return shader;
 	}
 	
-	Sculpture.prototype.initShaders() {
-		var fragmentShader = getShader(gl, "shader-fs");
-		var vertexShader = getShader(gl, "shader-vs");
+	Sculpture.prototype.initShaders = function() {
+		var fragmentShader = this.getShader(gl, "shader-fs");
+		var vertexShader = this.getShader(gl, "shader-vs");
 	
 		this.shaderProgram = gl.createProgram();
 		gl.attachShader(this.shaderProgram, vertexShader);
@@ -144,13 +144,13 @@ function main(){
 	}
 	
 	
-	Sculpture.prototype.setMatrixUniforms() {
+	Sculpture.prototype.setMatrixUniforms = function() {
 		gl.uniformMatrix4fv(this.shaderProgram.pMatrixUniform, false, this.pMatrix);
 		gl.uniformMatrix4fv(this.shaderProgram.mvMatrixUniform, false, this.mvMatrix);
 	}
 	
 	
-	Sculpture.prototype.initBuffers() {
+	Sculpture.prototype.initBuffers = function() {
 		// circle shape "triangle fan"
 		
 		// TODO: move some of these to settings so they can be changed before init
@@ -216,13 +216,13 @@ function main(){
         this.bulbBGVertexColorBuffer.numItems = this.bulbBGVertexPositionBuffer.numItems;
 	}
 	
-	Sculpture.prototype.drawBulb(bulb) {
+	Sculpture.prototype.drawBulb = function(bulb) {
 		// Move to the bulb's position
 		GLMat.mat4.translate(this.mvMatrix, this.mvMatrix, bulb.pos);
 	
 		// Rotate back so that the bulb is facing the viewer
-		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(-rota), [ 0.0, 1.0, 0.0 ]);
-		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(-pitch), [ 1.0, 0.0, 0.0 ]);
+		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(-this.rota), [ 0.0, 1.0, 0.0 ]);
+		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(-this.pitch), [ 1.0, 0.0, 0.0 ]);
 		
 		this.setMatrixUniforms();
 		
@@ -263,7 +263,7 @@ function main(){
 	
 	// === construct the sculpture === //
 	
-	Sculpture.prototype.initWorldObjects(){
+	Sculpture.prototype.initWorldObjects = function(){
 		var rOffset = 0;
 		var rowBulbsNum;
 		var rowRad; // row radius
@@ -313,7 +313,7 @@ function main(){
 		
 	}
 	
-	Sculpture.prototype.getBulbsByLatLong(lat0, lat1, long0, long1){
+	Sculpture.prototype.getBulbsByLatLong = function(lat0, lat1, long0, long1){
 		long0 = modulo(long0, twoPI);
 		long1 = modulo(long1, twoPI);
 		lat0 = modulo(lat0, 1);
@@ -360,24 +360,24 @@ function main(){
 	
 	// === on frame and init functions === //
 	
-	Sculpture.prototype.render() {
+	Sculpture.prototype.render = function() {
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 		
 		GLMat.mat4.identity(this.mvMatrix);
 		GLMat.mat4.translate(this.mvMatrix, this.mvMatrix, [ 0.0, 0.0, this.zoom ]);
 		
-		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(pitch), [ 1.0, 0.0, 0.0 ]);
-		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(rota), [ 0.0, 1.0, 0.0 ]);
+		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(this.pitch), [ 1.0, 0.0, 0.0 ]);
+		GLMat.mat4.rotate(this.mvMatrix, this.mvMatrix, degToRad(this.rota), [ 0.0, 1.0, 0.0 ]);
 		
 		GLMat.mat4.copy(this.initMVMat, this.mvMatrix);
 		
-		for ( var i in this.bulbs) {
+		for (var i in this.bulbs) {
 			this.drawBulb(this.bulbs[i]);
 		}
 	}
 	
 	
-	Sculpture.prototype.init() {
+	Sculpture.prototype.init = function() {
 		var canvas = document.getElementById("beaconCanvas");
 		this.initGL(canvas);
 		this.initShaders();
@@ -467,10 +467,103 @@ function main(){
 	}
 	
 	
+	// ======= animation Programme ======= //
+	var Programme = function(title){
+		this.title = title;
+		this.sculpt;
+		
+		this.onFrame = function(elapse){}; // to be overridden 
+		
+		this.init = function(sculpt){ // can be overridden 
+			this.sculpt = sculpt;
+		}
+	}
+	
+	// ======= o ======= //
+	
+	var currentlyPressedKeys = {};
+	var prevFrameT = 0;
+	var elapse = 0;
+	
+	// --- user input --- //
+	
+	function handleKeyDown(event) {
+		currentlyPressedKeys[event.keyCode] = true;
+	}
+	
+	function handleKeyUp(event) {
+		currentlyPressedKeys[event.keyCode] = false;
+	}
+	
+	function handleKeys() {
+		if (currentlyPressedKeys[34]) {
+			// Page Up
+			sculpt.zoom -= 0.1;
+		}
+		if (currentlyPressedKeys[33]) {
+			// Page Down
+			sculpt.zoom += 0.1;
+		}
+		if (currentlyPressedKeys[37]) {
+			// Up cursor key
+			sculpt.rota += 2;
+		}
+		if (currentlyPressedKeys[39]) {
+			// Down cursor key
+			sculpt.rota -= 2;
+		}
+		if (currentlyPressedKeys[38]) {
+			// Up cursor key
+			sculpt.pitch += 2;
+		}
+		if (currentlyPressedKeys[40]) {
+			// Down cursor key
+			sculpt.pitch -= 2;
+		}
+	}
+	
+	// --- o --- //
+	var sculpt = new Sculpture();
+	var activeProgramme;
+	var programmes = [];
+	
+	function onFrame(){
+		var nowT = new Date().getTime();
+		if (prevFrameT == 0) {
+			prevFrameT = nowT;
+			requestAnimFrame(onFrame);
+			return;
+		}
+		elapse = nowT - prevFrameT;
+		
+		
+		handleKeys();
+		
+		activeProgramme.onFrame(elapse);
+		sculpt.render();
+		
+		prevFrameT = nowT;
+		requestAnimFrame(onFrame);
+	}
+	
+	
+	function onLoaded(){
+		// - any changes to sculpt settings go here
+		
+		sculpt.init();
+		
+		for ( var i in programmes) {
+			programmes[i].init(sculpt);
+		}
+		onFrame();
+	}
+	
+	// ======= end main structure begin modular parts ======= //
+	
 	// ======= animations ======= //
 	
 	// === programme A === //
-	var pA = {}; // TODO: make this a class so it can be extended by users and passed in modularly
+	var pA = new Programme('Programme A'); // TODO: make this a class so it can be extended by users and passed in modularly
 	
 	// - square - //
 	pA.sqW = twoPI / 7;
@@ -536,85 +629,16 @@ function main(){
 		}
 	}
 	
-	pA.init = function(sculpt){
-		this.sculpt = sculpt;
-	}
+	programmes.push(pA);
+	
+	// === programme B=== //
+	// === o === //
+	
+	activeProgramme = pA;
+	
+	
 	
 	// ======= o ======= //
-	
-	var currentlyPressedKeys = {};
-	var prevFrameT = 0;
-	var elapse = 0;
-	
-	// --- user input --- //
-	
-	function handleKeyDown(event) {
-		currentlyPressedKeys[event.keyCode] = true;
-	}
-	
-	function handleKeyUp(event) {
-		currentlyPressedKeys[event.keyCode] = false;
-	}
-	
-	function handleKeys() {
-		if (currentlyPressedKeys[34]) {
-			// Page Up
-			sculpt.zoom -= 0.1;
-		}
-		if (currentlyPressedKeys[33]) {
-			// Page Down
-			sculpt.zoom += 0.1;
-		}
-		if (currentlyPressedKeys[37]) {
-			// Up cursor key
-			sculpt.rota += 2;
-		}
-		if (currentlyPressedKeys[39]) {
-			// Down cursor key
-			sculpt.rota -= 2;
-		}
-		if (currentlyPressedKeys[38]) {
-			// Up cursor key
-			sculpt.pitch += 2;
-		}
-		if (currentlyPressedKeys[40]) {
-			// Down cursor key
-			sculpt.pitch -= 2;
-		}
-	}
-	
-	// --- o --- //
-	var sculpt = new Sculpture();
-	
-	
-	function onFrame() {
-		var nowT = new Date().getTime();
-		if (prevFrameT == 0) {
-			prevFrameT = nowT;
-			requestAnimFrame(onFrame);
-			return;
-		}
-		elapse = nowT - prevFrameT;
-		
-		
-		handleKeys();
-		
-		pA.onFrame(elapse);
-		sculpt.render();
-		
-		prevFrameT = nowT;
-		requestAnimFrame(onFrame);
-	}
-	
-	
-	function onLoaded(){
-		// - any changes to sculpt settings go here
-		
-		sculpt.init();
-		pA.init(sculpt);
-		onFrame();
-	}
-	
 	
 	onLoaded();// kick it off 
 } // end main()
