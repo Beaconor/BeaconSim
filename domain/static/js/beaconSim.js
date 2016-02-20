@@ -677,25 +677,6 @@ function main(){
 		
 		onFrame();
 		onInit();
-		
-		/*
-		hsb = {};
-		rgb = {};
-		hsb.h = Math.random();
-		hsb.s = Math.random();
-		hsb.b = Math.random();
-		
-		hsb.h = 0.75;
-		hsb.s = 0.0;
-		hsb.b = 0.5;
-		
-		console.log(hsb);
-		
-		rgb = hsbToRGB(hsb.h, hsb.s, hsb.b);
-		
-		hsb = rgbToHSB(rgb.r, rgb.g, rgb.b);
-		console.log(hsb);
-		*/
 	}
 	
 	// ======= end main structure begin modular parts ======= //
@@ -775,9 +756,25 @@ function main(){
 	var pB = new Programme('Programme B'); 
 	
 	pB.amp = 0.5;
-	pB.varience = 0.03;
+	// TODO: need to make all of these dependent on elapse 
+	pB.varience = 0.3;
+	
 	pB.fadeRate = 0.98;
 	pB.fadeFloor = 0.01;
+	pB.glowMult = 0.1;
+	
+	pB.particlesNum = 18;
+	pB.particles = [];
+	pB.elasticity = 0.001;
+	pB.antiElasticity = (1 - pB.elasticity) * 0.5;
+	pB.gravity = 0.98;
+	pB.elasticity *= pB.gravity;
+	
+	for (var iPart = 0; iPart < pB.particlesNum; iPart++){
+		pB.particles.push(pB.amp);
+	}
+	
+	pB.hueRate = 6000;
 	
 	pB.channelFade = function(cVal){
 		cVal *= pB.fadeRate;
@@ -787,30 +784,69 @@ function main(){
 	
 	pB.onFrame = function(elapse){
 		var iBulb;
+		var iPart;
 		var strength;
-		/*
-		for (iBulb = 0; iBulb < this.sculpt.bulbs.length; iBulb++){
-			var bulb = this.sculpt.bulbs[iBulb];
-			
-			bulb.color.r = bulb.color.g = bulb.color.b = 0.1;
-		}
-		*/
+		var hsb;
+		var rgb;
+		var cordAmp;
+		var atIndex;
+		var lIndex;
+		var rIndex;
 		
 		pB.amp += pB.varience * (Math.random() * 2 - 1);
+		//pB.amp = ((pB.particles[0] + pB.particles[pB.particles.length-1]) * 0.5) + pB.varience * (Math.random() * 2 - 1);
 		
 		pB.amp = clamp(pB.amp, 0, 1);
 		
+		var lPart;
+		var rPart;
+		var newParticles = [];
+		for (iPart = 0; iPart < pB.particles.length; iPart++){
+			if (0 == iPart){
+				lPart = pB.amp;
+			}else{
+				lPart = pB.particles[iPart-1];
+			}
+			
+			if (pB.particles.length-1 == iPart){
+				rPart = pB.amp;
+			}else{
+				rPart = pB.particles[iPart+1];
+			}
+			
+			newParticles[iPart] = pB.particles[iPart] * pB.elasticity + lPart * pB.antiElasticity + rPart * pB.antiElasticity;
+			newParticles[iPart] = clamp(newParticles[iPart], 0, 1);
+		}
+		
+		pB.particles = newParticles;
 		
 		for (iBulb = 0; iBulb < this.sculpt.bulbs.length; iBulb++){
 			var bulb = this.sculpt.bulbs[iBulb];
+			atIndex =  (bulb.longitude / twoPI) * pB.particles.length;
+			lIndex = Math.floor(atIndex);
+			atIndex -= lIndex;
+			rIndex = lIndex + 1;
+			lIndex = modulo(lIndex, pB.particles.length);
+			rIndex = modulo(rIndex, pB.particles.length);
 			
-			if (bulb.latitude <= pB.amp){
-				strength = 1 - ((pB.amp - bulb.latitude)/0.4);
-				bulb.color.r = bulb.color.g = bulb.color.b = strength;
+			cordAmp = lerp(pB.particles[lIndex], pB.particles[rIndex], atIndex);
+			
+			if (bulb.latitude <= cordAmp){
+				strength = 1 - ((cordAmp - bulb.latitude)/0.4);
+				hsb = rgbToHSB(bulb.color.r, bulb.color.g, bulb.color.b);
+				hsb.h += elapse / pB.hueRate;
+				
+				strength = (strength * pB.glowMult) + (hsb.b * (1-pB.glowMult));
+				
+				rgb = hsbToRGB(hsb.h, 1.0, strength);
+				bulb.color.r = rgb.r; // TODO: make an RGB class so we can just do bulb.color = rgb and rgbToHSB(rgb)
+				bulb.color.g = rgb.g;
+				bulb.color.b = rgb.b;
+				
 			}else{
 				bulb.color.r = pB.channelFade(bulb.color.r);
-				bulb.color.g = pB.channelFade(bulb.color.r);
-				bulb.color.b = pB.channelFade(bulb.color.r);
+				bulb.color.g = pB.channelFade(bulb.color.g);
+				bulb.color.b = pB.channelFade(bulb.color.b);
 			}
 		}
 	}
@@ -818,7 +854,7 @@ function main(){
 	programmes.push(pB);
 	// === o === //
 	
-	activeProgramme = pA;
+	activeProgrammeIndex = 1;
 	
 	// ======= code for anything outside of the sculpture ======= //
 	function showProgInfo(){
