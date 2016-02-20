@@ -413,6 +413,11 @@ function main(){
 		return (to - from) * pct + from;
 	}
 	
+	function iLerp(from, to, at){
+		// - caller deals with NaN when to == from
+		return (at - from) / (to - from);
+	}
+	
 	function modulo(value, base){
 		value = value % base;
 		if (value < 0) value += Math.ceil( Math.abs(value) / base ) * base;
@@ -431,6 +436,7 @@ function main(){
 	}
 	
 	function hsbToRGB(h, s, b){
+		// all values are 0 -> 1
 		
 		// 				HUE 
 		//		
@@ -457,23 +463,6 @@ function main(){
 		var ofSix = h * 6;
 		
 		var color = {};
-		
-		// test 
-		/*
-		var testColor = {};
-		var varColor = {};
-		
-		// helper bot
-		var sixToChannel = function(localOfSix){
-			localOfSix = modulo(localOfSix, 6) - 3; // // -3 -> 0 -> 3
-			localOfSix = clamp( (Math.abs(localOfSix) - 1), 0, 1); // 1 -> 1 -> 0 -> 0 -> 0 -> 1 -> 1
-			return localOfSix;
-		}
-		
-		testColor.r = sixToChannel(ofSix);
-		testColor.g = sixToChannel(ofSix + 4);
-		testColor.b = sixToChannel(ofSix + 2);
-		/* */
 		
 		var max = b;
 		var min = (1 - s) * b;
@@ -507,37 +496,88 @@ function main(){
 			color.b = downFlux;
 		}
 		
-		// test 
-		/*
-		varColor.r = testColor.r - color.r;
-		varColor.g = testColor.g - color.g;
-		varColor.b = testColor.b - color.b;
 		
-		console.log(ofSix);
-		console.log(color);
-		//console.log(varColor);
-		//console.log("   ");
-		/* */
 		return color;
 	}
-	/*
-	function hueToPct(r, g, b){
+	
+	
+	function rgbToHSB(r, g, b){
+		// all values are 0 -> 1
 		r = clamp(r, 0, 1);
 		g = clamp(g, 0, 1);
 		b = clamp(b, 0, 1);
 		
 		var ofSix = 0;
 		
-		if (g > r && g > b){
+		var hsb = {};
+		var max;
+		var flux;
+		var min;
+		
+		if (r >= g && r >= b){
+			if (g >= b){
+				ofSix = 0;
+			}else{
+				ofSix = 5;
+			}
+		}else if (g >= r && g >= b){
+			if (r >= b){
+				ofSix = 1;
+			}else{
+				ofSix = 2;
+			}
+		}else{ // (b >= g && b >= r)
+			if (g >= r){
+				ofSix = 3;
+			}else{
+				ofSix = 4;
+			}
+		} 
+		
+		switch (ofSix){
+			case 0:
+				max = r;
+				min = b;
+				flux = ofSix + iLerp(min, max, g);
+				break;
+			case 1:
+				max = g;
+				min = b;
+				flux = ofSix + (1 - iLerp(min, max, r));
+				break;
+			case 2:
+				max = g;
+				min = r;
+				flux = ofSix + iLerp(min, max, b);
+				break;
+			case 3:
+				max = b;
+				min = r;
+				flux = ofSix + (1 - iLerp(min, max, g));
+				break;
+			case 4:
+				max = b;
+				min = g;
+				flux = ofSix + iLerp(min, max, r);
+				break;
+			default:
+				max = r;
+				min = g;
+				flux = ofSix + (1 - iLerp(min, max, b));
 			
-		}else if(){
-			
-		}else{
-			// grey scales will be red deg = 0
 		}
 		
+		hsb.h = flux/6;
+		if (isNaN(hsb.h)) hsb.h = 0;
+		hsb.s = 0;
+		if (max != 0) hsb.s = 1 - min/max;
+		hsb.b = max;
+		
+		return hsb;
 	}
-	*/
+	
+	
+	
 	// ======= animation Programme ======= //
 	var Programme = function(title){
 		this.title = title;
@@ -637,18 +677,24 @@ function main(){
 		
 		onFrame();
 		onInit();
-		//for (var i=0; i<=36; i++){
-		//	hsbToRGB(i/36, 1.0, 0.5);
-		//}
+		
 		/*
-		console.log(219/360 * 6);
-		console.log( hsbToRGB(219/360, 1.0, 1.0) );
+		hsb = {};
+		rgb = {};
+		hsb.h = Math.random();
+		hsb.s = Math.random();
+		hsb.b = Math.random();
 		
-		console.log(225/360 * 6);
-		console.log( hsbToRGB(225/360, 1.0, 1.0) );
+		hsb.h = 0.75;
+		hsb.s = 0.0;
+		hsb.b = 0.5;
 		
-		console.log(255/360 * 6);
-		console.log( hsbToRGB(255/360, 1.0, 1.0) );
+		console.log(hsb);
+		
+		rgb = hsbToRGB(hsb.h, hsb.s, hsb.b);
+		
+		hsb = rgbToHSB(rgb.r, rgb.g, rgb.b);
+		console.log(hsb);
 		*/
 	}
 	
