@@ -23,7 +23,8 @@ function main(){
 	
 	// ======= Bulb ======= //
 	
-	function Bulb(pos, latitude, longitude) {
+	function Bulb(id, pos, latitude, longitude) {
+		this.id = id;
 		this.pos = pos;
 		this.latitude = latitude; // 0 -> 1, from south pole to north pole
 		this.longitude = longitude; // longitude in radians  
@@ -305,7 +306,7 @@ function main(){
 				
 				var pos = GLMat.vec3.create();
 				GLMat.vec3.set(pos, x, y, z);
-				var bulb = new Bulb(pos, latPct, r);
+				var bulb = new Bulb(iBulb, pos, latPct, r);
 				this.bulbs.push(bulb);
 			}
 			
@@ -752,73 +753,126 @@ function main(){
 	
 	programmes.push(pA);
 	
+	
+	
 	// === programme B=== //
 	var pB = new Programme('Programme B'); 
 	
-	pB.amp = 0.5;
-	// TODO: need to make all of these dependent on elapse 
-	pB.varience = 0.3;
+	pB.centerLlat = 0.5;
+	pB.latRange = 0.05;
 	
-	pB.fadeRate = 0.98;
+	pB.bumpMax = 0.04;
+	pB.bumpRate = 3000;
+	
+	pB.fadeRate = 3000;
 	pB.fadeFloor = 0.01;
-	pB.glowMult = 0.1;
+	//pB.glowMult = 0.1;
 	
-	pB.particlesNum = 18;
+	pB.pTimeMult = 0.15;
+	
+	pB.pNum = 8;
 	pB.particles = [];
-	pB.elasticity = 0.001;
-	pB.antiElasticity = (1 - pB.elasticity) * 0.5;
-	pB.gravity = 0.98;
-	pB.elasticity *= pB.gravity;
+	pB.entropyMult = 0.996;
+	pB.elasticyY = 0.0002;
+	pB.elasticyX = 0.0003;
+	pB.breakY = 1;
 	
-	for (var iPart = 0; iPart < pB.particlesNum; iPart++){
-		pB.particles.push(pB.amp);
+	for (var iPart = 0; iPart < pB.pNum; iPart++){
+		var p = {};
+		p.id = 'p'+iPart;
+		p.y1 = 0;
+		p.y = 0;
+		p.vY = 0;
+		pB.particles.push(p);
 	}
 	
-	pB.hueRate = 6000;
+	pB.particles[3].vY = pB.bumpMax;
 	
-	pB.channelFade = function(cVal){
-		cVal *= pB.fadeRate;
-		if (cVal < pB.fadeFloor) cVal = 0.0;
-		return cVal;
+	pB.hueRate = 3000;
+	
+	pB.getForce = function(elapse, distance, elasticy) {
+		var tension = -distance / pB.breakY;
+		if (tension > 1)
+			tension = 1;
+		if (tension < -1)
+			tension = -1;
+		var force = tension * elasticy * elapse;
+
+		return force;
 	}
+	
+	pB.pFrame = function(elapse) {
+		var lY;
+		var rY;
+		var diff;
+		var force;
+		var i;
+		var lP;
+		var rP;
+		
+		for (i = 0; i < pB.particles.length; i++) {
+			if (0 == i) {
+				lP = pB.particles[pB.particles.length - 1];
+			} else {
+				lP = pB.particles[i - 1];
+			}
+			rP = pB.particles[i];
+
+			lY = (lP.y1 + lP.y) * 0.5;
+			rY = (rP.y1 + rP.y) * 0.5;
+			force = pB.getForce(elapse, lY - rY, pB.elasticyX);
+			lP.vY += force;
+			rP.vY -= force;
+		}
+		
+		var avgVY;
+		var avgY;
+		
+		for (i = 0; i < pB.particles.length; i++) {
+			var p = pB.particles[i];
+			
+			avgVY = p.vY;
+			avgY = (p.y1 + p.y) * 0.5;
+			
+			p.vY += pB.getForce(elapse, avgY, pB.elasticyY);
+
+			p.vY *= Math.pow(pB.entropyMult, elapse);
+			avgVY += p.vY;
+			avgVY *= 0.5;
+			p.y1 = p.y;
+			p.y += avgVY * elapse;
+		}
+	}
+
+	pB.oddsCollect = 0;
 	
 	pB.onFrame = function(elapse){
+		var pElapse = elapse * pB.pTimeMult;
+		
 		var iBulb;
 		var iPart;
 		var strength;
 		var hsb;
 		var rgb;
-		var cordAmp;
+		var cordLat;
+		var prevCordLat;
 		var atIndex;
 		var lIndex;
 		var rIndex;
+		var bulbDist;
 		
-		pB.amp += pB.varience * (Math.random() * 2 - 1);
-		//pB.amp = ((pB.particles[0] + pB.particles[pB.particles.length-1]) * 0.5) + pB.varience * (Math.random() * 2 - 1);
-		
-		pB.amp = clamp(pB.amp, 0, 1);
-		
-		var lPart;
-		var rPart;
-		var newParticles = [];
-		for (iPart = 0; iPart < pB.particles.length; iPart++){
-			if (0 == iPart){
-				lPart = pB.amp;
-			}else{
-				lPart = pB.particles[iPart-1];
-			}
-			
-			if (pB.particles.length-1 == iPart){
-				rPart = pB.amp;
-			}else{
-				rPart = pB.particles[iPart+1];
-			}
-			
-			newParticles[iPart] = pB.particles[iPart] * pB.elasticity + lPart * pB.antiElasticity + rPart * pB.antiElasticity;
-			newParticles[iPart] = clamp(newParticles[iPart], 0, 1);
+		// - add a push?
+		pB.oddsCollect += Math.random() * (elapse/pB.bumpRate);
+		if (pB.oddsCollect >= 1){
+			pB.oddsCollect = 0;
+			var pI = Math.floor(Math.random() * pB.particles.length);
+			var bumpY = ((Math.random() * 2) -1) * pB.bumpMax;
+			pB.particles[pI].vY += bumpY;
+			//console.log('bump:'+bumpY);
 		}
 		
-		pB.particles = newParticles;
+		pB.pFrame(pElapse);
+		
 		
 		for (iBulb = 0; iBulb < this.sculpt.bulbs.length; iBulb++){
 			var bulb = this.sculpt.bulbs[iBulb];
@@ -829,10 +883,26 @@ function main(){
 			lIndex = modulo(lIndex, pB.particles.length);
 			rIndex = modulo(rIndex, pB.particles.length);
 			
-			cordAmp = lerp(pB.particles[lIndex], pB.particles[rIndex], atIndex);
+			cordLat = lerp(pB.particles[lIndex].y, pB.particles[rIndex].y, atIndex);
+			cordLat += pB.centerLlat;
 			
-			if (bulb.latitude <= cordAmp){
-				strength = 1 - ((cordAmp - bulb.latitude)/0.4);
+			prevCordLat = lerp(pB.particles[lIndex].y1, pB.particles[rIndex].y1, atIndex);
+			prevCordLat += pB.centerLlat;
+			
+			if (Math.abs(cordLat - prevCordLat) < pB.latRange){
+				var dMult = 1;
+				if (prevCordLat < cordLat){
+					dMult = -1;
+				}
+				prevCordLat = cordLat + (pB.latRange * dMult);
+			}
+			
+			var tOffset = iLerp(prevCordLat, cordLat, bulb.latitude);
+			var fadeElapse = elapse;
+			
+			if (0 < tOffset && tOffset <= 1){
+				/*
+				strength = 1 - ((cordLat - bulb.latitude)/0.4);
 				hsb = rgbToHSB(bulb.color.r, bulb.color.g, bulb.color.b);
 				hsb.h += elapse / pB.hueRate;
 				
@@ -842,12 +912,22 @@ function main(){
 				bulb.color.r = rgb.r; // TODO: make an RGB class so we can just do bulb.color = rgb and rgbToHSB(rgb)
 				bulb.color.g = rgb.g;
 				bulb.color.b = rgb.b;
-				
-			}else{
-				bulb.color.r = pB.channelFade(bulb.color.r);
-				bulb.color.g = pB.channelFade(bulb.color.g);
-				bulb.color.b = pB.channelFade(bulb.color.b);
+				*/
+				bulb.color.r = 1.0; // TODO: make an RGB class so we can just do bulb.color = rgb and rgbToHSB(rgb)
+				bulb.color.g = 0.0;
+				bulb.color.b = 0.0;
+				//fadeElapse *= 1 - tOffset;
 			}
+			
+			hsb = rgbToHSB(bulb.color.r, bulb.color.g, bulb.color.b);
+			hsb.h += fadeElapse / pB.hueRate;
+			hsb.b -= fadeElapse / pB.fadeRate
+			rgb = hsbToRGB(hsb.h, hsb.s, hsb.b);
+			
+			bulb.color.r = rgb.r;
+			bulb.color.g = rgb.g;
+			bulb.color.b = rgb.b;
+			
 		}
 	}
 	
