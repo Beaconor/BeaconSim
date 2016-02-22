@@ -654,6 +654,7 @@ function main(){
 		}
 		elapse = nowT - prevFrameT;
 		
+		if (100 < elapse) elapse = 100;
 		
 		handleKeys();
 		
@@ -677,6 +678,7 @@ function main(){
 		activeProgramme = programmes[activeProgrammeIndex];
 		
 		onFrame();
+		initSockets();
 		onInit();
 	}
 	
@@ -960,6 +962,39 @@ function main(){
 	
 	onInit = function(){
 		showProgInfo();
+	}
+	
+	// ======= o ======= //
+	
+	// ======= Web Socket ======= //
+	
+	function logMessage(msg, type){
+		var msgRoom = "";
+		if (typeof msg.room != 'undefined'){
+			msgRoom = msg.room;
+		}
+		console.log(msg.count +' '+ type.toString() +' '+ msgRoom);
+		console.log( msg );
+	}
+	
+	function initSockets(){
+		namespace = '/beaconsim'; // change to an empty string to use the global namespace
+
+	    // the socket.io documentation recommends sending an explicit package upon connection
+	    // this is specially important when using the global namespace
+	    socket = io.connect('http://' + document.domain + ':' + location.port + namespace);
+	    socket.on('connect', function() {
+	        socket.emit('my event', {data: 'I\'m connected!'});
+	    });
+		
+	    socket.on('response', function(msg) {
+	        logMessage(msg, "Received");
+	    });
+	    
+	    socket.on('joined_room', function(msg) {
+	    	logMessage(msg, "Joined Room");
+	    	onJoinGame(msg);
+	    });
 	}
 	
 	// ======= o ======= //
