@@ -277,6 +277,8 @@ function main(){
 		var x, y, z;
 		var r;// rotation radians 
 		
+		var bulbId = 0;
+		
 		var iRow;
 		var iBulb;
 		
@@ -306,8 +308,9 @@ function main(){
 				
 				var pos = GLMat.vec3.create();
 				GLMat.vec3.set(pos, x, y, z);
-				var bulb = new Bulb(iBulb, pos, latPct, r);
+				var bulb = new Bulb(bulbId, pos, latPct, r);
 				this.bulbs.push(bulb);
+				bulbId++;
 			}
 			
 		}
@@ -585,6 +588,7 @@ function main(){
 		this.sculpt;
 		
 		this.onFrame = function(elapse){}; // to be overridden 
+		this.onSelect = function(){}; // to be overridden 
 		
 		this.init = function(sculpt){ // can be overridden 
 			this.sculpt = sculpt;
@@ -934,6 +938,55 @@ function main(){
 	}
 	
 	programmes.push(pB);
+	
+	
+	// === programme C === //
+	var pC = new Programme('Feed From Server'); 
+	
+	pC.isNewData = false;
+	pC.data = {};
+	pC.onNewData = function(data){
+		pC.data = data;
+		pC.isNewData = true;
+	}
+	
+	pC.onSelect = function(){
+		var iBulb;
+		console.log('onSelect');
+		for (iBulb=0; iBulb<this.sculpt.bulbs.length; iBulb++){
+			bulb = this.sculpt.bulbs[iBulb];
+			
+			bulb.color.r = 0.0;
+			bulb.color.g = 0.0;
+			bulb.color.b = 0.0;
+		}
+	};
+	
+	pC.onFrame = function(elapse){
+		if (!pC.isNewData) return;
+		pC.isNewData = false;
+		
+		var iBulb;
+		var dataBulb;
+		var bulb;
+		
+		console.log('update sculpt');
+		
+		for (iBulb=0; iBulb<pC.data.bulbs.length; iBulb++){
+			dataBulb = pC.data.bulbs[iBulb];
+			bulb = this.sculpt.bulbs[dataBulb.id];
+			
+			console.log(dataBulb);
+			console.log(bulb);
+			console.log(" ");
+			
+			bulb.color.r = dataBulb.color.r;
+			bulb.color.g = dataBulb.color.g;
+			bulb.color.b = dataBulb.color.b;
+		}
+	}
+	
+	programmes.push(pC);
 	// === o === //
 	
 	activeProgrammeIndex = 1;
@@ -951,6 +1004,7 @@ function main(){
 			activeProgramme = programmes[activeProgrammeIndex];
 			
 			showProgInfo();
+			activeProgramme.onSelect();
 			
 			prgCyclePressed = true;
 		}
@@ -982,13 +1036,18 @@ function main(){
 
 	    // the socket.io documentation recommends sending an explicit package upon connection
 	    // this is specially important when using the global namespace
-	    socket = io.connect('http://' + document.domain + ':' + location.port + namespace);
+		socket = io.connect('http://' + document.domain + ':' + location.port + namespace);
 	    socket.on('connect', function() {
 	        socket.emit('my event', {data: 'I\'m connected!'});
 	    });
 		
 	    socket.on('response', function(msg) {
 	        logMessage(msg, "Received");
+	    });
+	    
+	    socket.on('bulbUpdate', function(msg) {
+	        logMessage(msg, "Received");
+	        pC.onNewData(msg.data);
 	    });
 	    
 	    socket.on('joined_room', function(msg) {
