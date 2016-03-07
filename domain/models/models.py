@@ -1,64 +1,36 @@
+from __future__ import print_function
+import sys
+
 import math
 from mongoengine import *
 from lib import utils
 
 
 class Color(EmbeddedDocument):
-    r = FloatField(min_value=0, max_value=1)
-    g = FloatField(min_value=0, max_value=1)
-    b = FloatField(min_value=0, max_value=1)
-    a = FloatField(min_value=0, max_value=1)
-    
-    def __init__(self, r=None, g=None, b=None, a=None, *args, **kwargs):
-        super(EmbeddedDocument, self).__init__(*args, **kwargs)
-        
-        if r is None:
-            r = 0.0
-        self.r = r
-        
-        if g is None:
-            g = 0.0
-        self.g = g
-        
-        if b is None:
-            b = 0.0
-        self.b = b
-        
-        if a is None:
-            a = 1.0
-        self.a = a
+    r = FloatField(min_value=0, max_value=1, default=0.0)
+    g = FloatField(min_value=0, max_value=1, default=0.0)
+    b = FloatField(min_value=0, max_value=1, default=0.0)
+    a = FloatField(min_value=0, max_value=1, default=1.0)
         
 
 class Position(EmbeddedDocument):
-    x = FloatField()
-    y = FloatField()
-    z = FloatField()
+    x = FloatField(required=True)
+    y = FloatField(required=True)
+    z = FloatField(required=True)
 
 
 class Bulb(EmbeddedDocument):
-    id = IntField(min_value=0)
-    pos = EmbeddedDocumentField(Position)
-    latitude = FloatField(min_value=0, max_value=1)
+    id = IntField(min_value=0, required=True)
+    pos = EmbeddedDocumentField(Position, required=True)
+    latitude = FloatField() #FloatField(min_value=0, max_value=1)
     longitude = FloatField()
     color = EmbeddedDocumentField(Color)
     
-    
-class BeaconFeed(Document):
-    title = StringField()
-    bulbs = ListField(EmbeddedDocumentField(Bulb))
-    
-    def __init__(self, title=None, *args, **kwargs):
-        super(Document, self).__init__(*args, **kwargs)
-        
-        if title is None:
-            title = ""
-        self.title = title
-        
-        self.initBulbs()
-        
-    
-    def initBulbs(self):
-        self.bulbs = []
+
+class DefaultBulbs():
+    @staticmethod
+    def initBulbs():
+        defaultBulbs = []
         
         unit = 0.8;
         bulbRows = 12;
@@ -87,7 +59,8 @@ class BeaconFeed(Document):
         iBulb
         '''
         for iRow in range(0, bulbRows):
-            latPct = iRow / (bulbRows-1) # 0 -> 1
+            latPct = iRow / float(bulbRows-1) # 0 -> 1 | also note the "float" that's a fun bug in python 2.x 
+            
             lat = (latPct * 2) - 1 # -1 -> 0 -> 1
             equatorPct = 1 - abs( lat ) # 0 -> 1 -> 0
             equatorPct = math.pow(equatorPct, curveExp) # give the thing some roundness 
@@ -117,8 +90,26 @@ class BeaconFeed(Document):
                 #bulb.pos.y = y
                 #bulb.pos.z = z
                 bulbId += 1
-                self.bulbs.append(bulb)
+                defaultBulbs.append(bulb)
             
         
+        return defaultBulbs
+    
+    
+class BeaconFeed(Document):
+    title = StringField(required=True, unique=True)
+    bulbs = ListField(EmbeddedDocumentField(Bulb), default=DefaultBulbs.initBulbs())
+    
+    '''
+    def __init__(self, title=None, *args, **kwargs):
+        super(Document, self).__init__(*args, **kwargs)
+        
+        if title is None:
+            title = ""
+        self.title = title
+        
+        self.initBulbs()
+   '''     
+    
         
     

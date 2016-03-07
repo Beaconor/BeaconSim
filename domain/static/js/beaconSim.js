@@ -675,6 +675,8 @@ function main(){
 		
 		sculpt.init();
 		
+		//console.log(sculpt.bulbs);
+		
 		for ( var i in programmes) {
 			programmes[i].init(sculpt);
 		}
@@ -972,13 +974,15 @@ function main(){
 		
 		console.log('update sculpt');
 		
+		console.log(pC.data);
+		
 		for (iBulb=0; iBulb<pC.data.bulbs.length; iBulb++){
 			dataBulb = pC.data.bulbs[iBulb];
 			bulb = this.sculpt.bulbs[dataBulb.id];
 			
-			console.log(dataBulb);
-			console.log(bulb);
-			console.log(" ");
+			//console.log(dataBulb);
+			//console.log(bulb);
+			//console.log(" ");
 			
 			bulb.color.r = dataBulb.color.r;
 			bulb.color.g = dataBulb.color.g;
@@ -1038,7 +1042,7 @@ function main(){
 	    // this is specially important when using the global namespace
 		socket = io.connect('http://' + document.domain + ':' + location.port + namespace);
 	    socket.on('connect', function() {
-	        socket.emit('my event', {data: 'I\'m connected!'});
+	        socket.emit('requestState', {data:{feedName:'beacon0'}});
 	    });
 		
 	    socket.on('response', function(msg) {

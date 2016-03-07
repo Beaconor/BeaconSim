@@ -5,7 +5,7 @@ import copy
 import time
 import json
 from threading import Thread
-from flask import Flask, render_template, session, request
+from flask import Flask, render_template, session, request, flash
 from flask.ext.socketio import SocketIO, emit, join_room, leave_room, close_room, disconnect
 
 from mongoengine import * 
@@ -61,7 +61,7 @@ def api():
     dataBulbs = requestObj['bulbs']
     #print 'BULBS'
     #print request.form['bulbs'][0]['color']['r']
-    beaconFeed = BeaconFeed.objects(title='beacon0')[0]
+    beaconFeed = BeaconFeed.objects(title='beacon0').first()
     
     for dBulb in dataBulbs:
         beaconFeed.bulbs[dBulb['id']].color.r = dBulb['color']['r']
@@ -70,6 +70,7 @@ def api():
         
     beaconFeed.save()
     
+    #flash(beaconFeed.to_json())
     
     beaconFeedJSON = json.loads( beaconFeed.to_json() )
     
@@ -84,9 +85,20 @@ def api():
 def test():
     
     beaconFeed = BeaconFeed(title='beacon0')
-    #beaconFeed.save()
+    beaconFeed.save()
     return beaconFeed.to_json()
 
+
+@socketio.on('requestState', namespace='/beaconsim')
+def requestState(message):
+    session['receive_count'] = session.get('receive_count', 0) + 1
+    feedName = message['data']['feedName']
+    beaconFeed = BeaconFeed.objects(title=feedName)[0]
+    
+    beaconFeedJSON = json.loads( beaconFeed.to_json() )
+    
+    socketio.emit('bulbUpdate',
+         {'data': beaconFeedJSON, 'count': 0}, namespace='/beaconsim')
 
 '''
 @socketio.on('my broadcast event', namespace='/beaconsim')
