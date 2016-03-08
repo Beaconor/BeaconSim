@@ -1035,6 +1035,11 @@ function main(){
 		console.log( msg );
 	}
 	
+	function onBulbUpdate(msg){
+		console.log('onBulbUpdate');
+		pC.onNewData(msg.data);
+	}
+	
 	function initSockets(){
 		namespace = '/beaconsim'; // change to an empty string to use the global namespace
 
@@ -1042,7 +1047,7 @@ function main(){
 	    // this is specially important when using the global namespace
 		socket = io.connect('http://' + document.domain + ':' + location.port + namespace);
 	    socket.on('connect', function() {
-	        socket.emit('requestState', {data:{feedName:'beacon0'}});
+	        socket.emit('requestState', {data:{feedName:'beacon0'}}, onBulbUpdate);
 	    });
 		
 	    socket.on('response', function(msg) {
@@ -1051,7 +1056,7 @@ function main(){
 	    
 	    socket.on('bulbUpdate', function(msg) {
 	        logMessage(msg, "Received");
-	        pC.onNewData(msg.data);
+	        onBulbUpdate(msg);
 	    });
 	    
 	    socket.on('joined_room', function(msg) {

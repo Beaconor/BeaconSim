@@ -1,7 +1,8 @@
 Flask==0.10.1
 Flask-Login==0.2.10
 Flask-SocketIO==2.1
-greenlet==0.4.2
+gevent==1.1.0
+greenlet==0.4.9
 itsdangerous==0.24
 Jinja2==2.8
 MarkupSafe==0.23

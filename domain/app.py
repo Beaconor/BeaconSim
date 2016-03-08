@@ -97,8 +97,9 @@ def requestState(message):
     
     beaconFeedJSON = json.loads( beaconFeed.to_json() )
     
-    socketio.emit('bulbUpdate',
-         {'data': beaconFeedJSON, 'count': 0}, namespace='/beaconsim')
+    #socketio.emit('bulbUpdate', {'data': beaconFeedJSON, 'count': 0}, namespace='/beaconsim')
+    
+    return {'data': beaconFeedJSON, 'count': 0}
 
 '''
 @socketio.on('my broadcast event', namespace='/beaconsim')
