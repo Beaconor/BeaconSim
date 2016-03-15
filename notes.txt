@@ -1,0 +1,4 @@
+
+Beaconor Notes: 
+
+curl -i -H "Accept: application/json" -H "Content-Type: application/json" -X POST -d '{"bulbs":[{"id":1,"color":{"r":1.0,"g":0.0,"b":0.0}}]}' http://localhost:5005/api 
